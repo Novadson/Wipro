@@ -19,12 +19,16 @@ namespace WiproBackend.Controllers
     public class CotacaosController : ControllerBase
     {
         private readonly ApplicationContext _context;
-        private static List<DadosMoeda> moedaList { get; set; }
-        private static List<DadosCotacao> cotacaoList { get; set; }
-
-        private string PathFile = @"C:\Wipro\TesteWipro\";
-
-        private CsvConfiguration config = new CsvConfiguration(CultureInfo.CurrentCulture) { Delimiter = ";", Encoding = Encoding.UTF8 };
+        private static List<MoedasCotacao> MoedasCotacaoList { get; set; } = new List<MoedasCotacao>();
+        private MoedasCotacao MoedasCotacao = new MoedasCotacao();
+        private string Path = @"C:\Wipro\TesteWipro\";
+        private readonly CsvConfiguration Config = new CsvConfiguration(CultureInfo.CurrentCulture)
+        {
+            Delimiter = ";",
+            Encoding = Encoding.UTF8,
+            HeaderValidated = null,
+            MissingFieldFound = null
+        };
         public CotacaosController(ApplicationContext context)
         {
             _context = context;
@@ -56,76 +60,88 @@ namespace WiproBackend.Controllers
         [HttpGet]
         public async Task<ActionResult<Cotacao>> GetItemFila()
         {
-            DadosMoeda();
             List<Cotacao> listCotacao = await _context.Cotacao.ToListAsync();
+            List<DadosMoeda> MoedaList = GetDadosMoeda();
+            List<DadosCotacao> dadosCotacaoList = GetDadosCotacao();
             if (listCotacao.Count > 0)
+            {
+                foreach (var item in listCotacao)
+                {
+                    if (MoedaList.Count > 0)
+                    {
+                        DadosMoeda DadosMoeda = MoedaList.FirstOrDefault(m => m.DATA_REF >= item.Data_Inicio && m.DATA_REF <= item.Data_Fim);
+                        if (DadosMoeda != null)
+                        {
+                            MoedasCotacao.Moeda = DadosMoeda.ID_MOEDA;
+                            MoedasCotacao.Periodo = DadosMoeda.DATA_REF.ToShortDateString();
+                            MoedasCotacao.Cod_Cotacao = new MoedasCotacao().tabelaDeParaList.FirstOrDefault(x => x.Key == DadosMoeda.ID_MOEDA).Value;
+                            MoedasCotacao.VlrCotacao = dadosCotacaoList.FirstOrDefault(d => d.cod_cotacao == MoedasCotacao.Cod_Cotacao).vlr_cotacao;
+                            MoedasCotacaoList.Add(MoedasCotacao);
+                        }
+                    }
+                }
+                ConvertListToCSV(MoedasCotacaoList);
                 return listCotacao.LastOrDefault();
-            else
-                return NotFound();
+            }
+            return new Cotacao() { WelcomeMessage = "Seja bem-vindo" };
         }
-        #endregion GET: api/Cotacaos
-        public void DadosMoeda()
+        #endregion 
+
+        #region GET AND CONVERT DADOSMOEDA.CSV FILE TO LIST
+        public List<DadosMoeda> GetDadosMoeda()
         {
-            using (StreamReader reader = new StreamReader(PathFile + "DadosMoeda.CSV"))
+            using (StreamReader reader = new StreamReader(Path + "DadosMoeda.CSV"))
             {
                 if (reader != null)
                 {
-                    using CsvReader csv = new CsvReader(reader, config);
+                    using CsvReader csv = new CsvReader(reader, Config);
                     {
                         if (csv != null)
-                            moedaList = csv.GetRecords<DadosMoeda>().ToList();
+                            return csv.GetRecords<DadosMoeda>().ToList();
                     }
                 }
 
             }
-            CreateCSVFile();
+            return new List<DadosMoeda>();
         }
-        public void DadosCotacao()
+        #endregion
+
+        #region GET AND CONVERT DADOSCOTACAO.CSV FILE TO LIST
+        public List<DadosCotacao> GetDadosCotacao()
         {
-            using (StreamReader reader = new StreamReader(PathFile + "DadosCotacao.CSV"))
+            using (StreamReader reader = new StreamReader(Path + "DadosCotacao.CSV"))
             {
                 if (reader != null)
                 {
-                    using CsvReader csv = new CsvReader(reader, config);
+                    using CsvReader csv = new CsvReader(reader, Config);
                     {
                         if (csv != null)
-                            cotacaoList = csv.GetRecords<DadosCotacao>().ToList();
+                            return csv.GetRecords<DadosCotacao>().ToList();
+                    }
+                }
+            }
+            return new List<DadosCotacao>();
+        }
+        #endregion
+
+        #region  CONVERT LIST TO MOEDASCOTACAO.CSV FILE 
+        public void ConvertListToCSV(List<MoedasCotacao> moedasCotacaos)
+        {
+            byte[] result;
+            using (var memoryStream = new MemoryStream())
+            {
+                using (var streamWriter = new StreamWriter(memoryStream))
+                {
+                    using (var csvWriter = new CsvWriter(streamWriter, Config))
+                    {
+                        csvWriter.WriteRecords(moedasCotacaos);
+                        streamWriter.Flush();
+                        result = memoryStream.ToArray();
                     }
                 }
             }
 
         }
-        public void CreateCSVFile()
-        {
-            //System.IO.File.WriteAllLines(@"C:\Wipro\TesteWipro\cotacaoList.CSV", moedaList.Select(x => string.Join(", ", x)));
-            //foreach (var obj in moedaList)
-            //{
-            //    var sb = new StringBuilder();
-            //    var line = "";
-            //    foreach (var prop in info)
-            //    {
-            //        line += prop.GetValue(obj, null) + "; ";
-            //    }
-            //    line = line.Substring(0, line.Length - 2);
-            //    sb.AppendLine(line);
-            //    TextWriter sw = new StreamWriter(finalPath, true);
-            //    sw.Write(sb.ToString());
-            //    sw.Close();
-            //}
-            //byte[] result;
-            //using (var memoryStream = new MemoryStream())
-            //{
-            //    using (var streamWriter = new StreamWriter(memoryStream))
-            //    {
-            //        using (var csvWriter = new CsvWriter(streamWriter, config))
-            //        {
-            //            csvWriter.WriteRecords(cotacaoList);
-            //            streamWriter.Flush();
-            //            result = memoryStream.ToArray();
-            //        }
-            //    }
-            //}
-
-        }
+        #endregion
     }
 }

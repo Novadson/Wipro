@@ -25,5 +25,6 @@ namespace WiproBackend.Models
         [DataType(DataType.Date, ErrorMessage = "Data em formato inválido")]
         [Column("data_fim")]
         public DateTime Data_Fim { get; set; }
+        public string WelcomeMessage { get; set; }
     }
 }
