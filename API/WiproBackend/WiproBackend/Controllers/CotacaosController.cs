@@ -18,10 +18,10 @@ namespace WiproBackend.Controllers
     [ApiController]
     public class CotacaosController : ControllerBase
     {
+        #region LOCAL VARIABLES
         private readonly ApplicationContext _context;
-        private static List<MoedasCotacao> MoedasCotacaoList { get; set; } = new List<MoedasCotacao>();
-        private MoedasCotacao MoedasCotacao = new MoedasCotacao();
-        private string Path = @"C:\Wipro\TesteWipro\";
+        private List<MoedasCotacao> MoedasCotacaoList { get; set; } = new List<MoedasCotacao>();
+        private string PathRead = @"C:\Wipro\TesteWipro";
         private readonly CsvConfiguration Config = new CsvConfiguration(CultureInfo.CurrentCulture)
         {
             Delimiter = ";",
@@ -33,6 +33,7 @@ namespace WiproBackend.Controllers
         {
             _context = context;
         }
+        #endregion
 
         #region POST: api/Cotacaos
         [HttpPost]
@@ -63,34 +64,35 @@ namespace WiproBackend.Controllers
             List<Cotacao> listCotacao = await _context.Cotacao.ToListAsync();
             List<DadosMoeda> MoedaList = GetDadosMoeda();
             List<DadosCotacao> dadosCotacaoList = GetDadosCotacao();
-            if (listCotacao.Count > 0)
+
+            if (listCotacao.Count > 0 && MoedaList.Count > 0)
             {
                 foreach (var item in listCotacao)
                 {
-                    if (MoedaList.Count > 0)
+                    DadosMoeda DadosMoeda = MoedaList.FirstOrDefault(m => m.DATA_REF >= item.Data_Inicio && m.DATA_REF <= item.Data_Fim);
+                    if (DadosMoeda != null)
                     {
-                        DadosMoeda DadosMoeda = MoedaList.FirstOrDefault(m => m.DATA_REF >= item.Data_Inicio && m.DATA_REF <= item.Data_Fim);
-                        if (DadosMoeda != null)
+                        MoedasCotacao MoedasCotacao = new MoedasCotacao
                         {
-                            MoedasCotacao.Moeda = DadosMoeda.ID_MOEDA;
-                            MoedasCotacao.Periodo = DadosMoeda.DATA_REF.ToShortDateString();
-                            MoedasCotacao.Cod_Cotacao = new MoedasCotacao().tabelaDeParaList.FirstOrDefault(x => x.Key == DadosMoeda.ID_MOEDA).Value;
-                            MoedasCotacao.VlrCotacao = dadosCotacaoList.FirstOrDefault(d => d.cod_cotacao == MoedasCotacao.Cod_Cotacao).vlr_cotacao;
-                            MoedasCotacaoList.Add(MoedasCotacao);
-                        }
+                            Moeda = DadosMoeda.ID_MOEDA,
+                            Periodo = DadosMoeda.DATA_REF.ToShortDateString()
+                        };
+                        MoedasCotacao.Cod_Cotacao = new MoedasCotacao().tabelaDeParaList.FirstOrDefault(x => x.Key == DadosMoeda.ID_MOEDA).Value;
+                        MoedasCotacao.VlrCotacao = dadosCotacaoList.FirstOrDefault(d => d.cod_cotacao == MoedasCotacao.Cod_Cotacao).vlr_cotacao;
+                        MoedasCotacaoList.Add(MoedasCotacao);
                     }
                 }
                 ConvertListToCSV(MoedasCotacaoList);
                 return listCotacao.LastOrDefault();
             }
-            return new Cotacao() { WelcomeMessage = "Seja bem-vindo" };
+            return NotFound();
         }
         #endregion 
 
         #region GET AND CONVERT DADOSMOEDA.CSV FILE TO LIST
         public List<DadosMoeda> GetDadosMoeda()
         {
-            using (StreamReader reader = new StreamReader(Path + "DadosMoeda.CSV"))
+            using (StreamReader reader = new StreamReader(PathRead + @"\DadosMoeda.CSV"))
             {
                 if (reader != null)
                 {
@@ -109,7 +111,7 @@ namespace WiproBackend.Controllers
         #region GET AND CONVERT DADOSCOTACAO.CSV FILE TO LIST
         public List<DadosCotacao> GetDadosCotacao()
         {
-            using (StreamReader reader = new StreamReader(Path + "DadosCotacao.CSV"))
+            using (StreamReader reader = new StreamReader(PathRead + @"\DadosCotacao.CSV"))
             {
                 if (reader != null)
                 {
@@ -127,20 +129,16 @@ namespace WiproBackend.Controllers
         #region  CONVERT LIST TO MOEDASCOTACAO.CSV FILE 
         public void ConvertListToCSV(List<MoedasCotacao> moedasCotacaos)
         {
-            byte[] result;
-            using (var memoryStream = new MemoryStream())
-            {
-                using (var streamWriter = new StreamWriter(memoryStream))
-                {
-                    using (var csvWriter = new CsvWriter(streamWriter, Config))
-                    {
-                        csvWriter.WriteRecords(moedasCotacaos);
-                        streamWriter.Flush();
-                        result = memoryStream.ToArray();
-                    }
-                }
-            }
+            string Path = Environment.GetFolderPath(Environment.SpecialFolder.Desktop) + @"\MoedaCotacao";
+            bool exists = Directory.Exists(Path);
+            if (!exists)
+                Directory.CreateDirectory(Path);
 
+            using (StreamWriter file = new StreamWriter(Path + @"\MoedaDataCotacao.CSV"))
+            {
+                foreach (MoedasCotacao item in moedasCotacaos)
+                    file.WriteLine(string.Format("{0},{1},{2}", item.Moeda, item.Periodo, item.VlrCotacao));
+            }
         }
         #endregion
     }
