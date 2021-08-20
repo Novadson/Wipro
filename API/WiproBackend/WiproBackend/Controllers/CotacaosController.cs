@@ -18,7 +18,7 @@ namespace WiproBackend.Controllers
     [ApiController]
     public class CotacaosController : ControllerBase
     {
-        #region LOCAL VARIABLES
+        #region  VARIABLES
         private readonly ApplicationContext _context;
         private List<MoedasCotacao> MoedasCotacaoList { get; set; } = new List<MoedasCotacao>();
         private string PathRead = @"C:\Wipro\TesteWipro";
